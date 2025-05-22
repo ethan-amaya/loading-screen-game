@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Competitive Loading Screens</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            overflow: hidden;
+        }
+
+        .os-window {
+            background: #f0f0f0;
+            color: #000;
+            border: 2px solid #999;
+            border-radius: 0;
+            position: absolute;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .window-header {
+            background: linear-gradient(to bottom, #0078d4, #106ebe);
+            color: white;
+            padding: 5px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .control-btn {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #666;
+            background: #ddd;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .control-btn:hover {
+            background: #ff4444;
+            color: white;
+        }
+
+        #gameContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #008080;
+            padding: 20px;
+        }
+
+        #lobbyScreen {
+            text-align: center;
+            padding: 50px;
+            background: rgba(0,0,0,0.8);
+            border-radius: 10px;
+            margin: 100px auto;
+            max-width: 500px;
+        }
+
+        #gameScreen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .loading-section {
+            background: #c0c0c0;
+            border: 2px inset #c0c0c0;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 0;
+        }
+
+        .player-bar {
+            margin: 15px 0;
+            padding: 10px;
+            background: white;
+            border: 1px solid #999;
+        }
+
+        .player-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #000080;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 25px;
+            background: white;
+            border: 2px inset #c0c0c0;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, #0078d4, #106ebe);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            color: black;
+            z-index: 10;
+        }
+
+        #loadButton {
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 20px auto;
+            display: block;
+            font-family: inherit;
+        }
+
+        #loadButton:active {
+            border: 2px inset #c0c0c0;
+        }
+
+        #loadButton:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .sabotage-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            padding: 15px;
+            min-width: 200px;
+        }
+
+        .sabotage-btn {
+            background: #ff6b6b;
+            border: 2px outset #ff6b6b;
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        .sabotage-btn:active {
+            border: 2px inset #ff6b6b;
+        }
+
+        .sabotage-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+        }
+
+        .popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            min-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .eula-content {
+            height: 200px;
+            overflow-y: scroll;
+            background: white;
+            padding: 10px;
+            border: 2px inset #c0c0c0;
+            font-size: 10px;
+            line-height: 1.3;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 25px;
+            background: #c0c0c0;
+            border-top: 1px solid #999;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 12px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ffeb3b;
+            color: #000;
+            padding: 10px 15px;
+            border: 2px solid #f57f17;
+            border-radius: 0;
+            z-index: 500;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .crash-effect {
+            animation: shake 0.5s ease-in-out;
+            background: #ff4444 !important;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .winner-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #00ff00;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+            z-index: 2000;
+        }
+
+        .boot-text {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+
+        input, button {
+            padding: 10px;
+            margin: 10px;
+            font-size: 16px;
+            border: 2px outset #c0c0c0;
+            background: #c0c0c0;
+            font-family: inherit;
+        }
+
+        input[type="text"] {
+            border: 2px inset #c0c0c0;
+            background: white;
+            color: black;
+        }
+
+        button:active {
+            border: 2px inset #c0c0c0;
+        }
+
+        .players-list {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <!-- Lobby Screen -->
+        <div id="lobbyScreen">
+            <h1>🖥️ Competitive Loading Screens</h1>
+            <p>Compete to be the first loading bar to reach 100%!</p>
+            <p>Deal with distractions and sabotage your opponents!</p>
+            
+            <div style="margin: 30px 0;">
+                <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="15">
+                <br>
+                <input type="text" id="roomCodeInput" placeholder="Room code (optional)">
+                <br>
+                <button onclick="joinGame()">Join Game</button>
+            </div>
+
+            <div id="waitingArea" style="display: none;">
+                <h3>Waiting for players...</h3>
+                <div id="playersList" class="players-list"></div>
+                <p>Room Code: <strong id="currentRoomCode"></strong></p>
+                <button id="startGameBtn" onclick="startGame()" style="display: none;">Start Game</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen">
+            <div class="loading-section">
+                <h2>🖥️ System Loading Manager v2.1</h2>
+                <div id="playersContainer"></div>
+                <button id="loadButton" onclick="increaseProgress()">
+                    ⚡ Process System Files ⚡
+                </button>
+            </div>
+
+            <div class="sabotage-panel">
+                <h4>💣 Sabotage Tools</h4>
+                <div id="sabotageButtons"></div>
+                <div id="sabotageTimer" style="font-size: 12px; margin-top: 10px;"></div>
+            </div>
+
+            <div class="status-bar">
+                <span id="statusText">System Status: Loading...</span>
+            </div>
+        </div>
+
+        <!-- Winner Screen -->
+        <div id="winnerScreen" class="winner-screen">
+            <div class="boot-text">SYSTEM BOOT COMPLETE</div>
+            <div class="boot-text">████████████████████████</div>
+            <div class="boot-text" id="winnerText"></div>
+            <div class="boot-text">Press F5 to restart system...</div>
+            <button onclick="location.reload()" style="margin-top: 30px;">Restart Game</button>
+        </div>
+    </div>
+
+    <!-- Popup overlays -->
+    <div id="popupOverlay" class="popup-overlay">
+        <div class="popup os-window" id="popupWindow">
+            <div class="window-header">
+                <span id="popupTitle">System Alert</span>
+                <div class="window-controls">
+                    <div class="control-btn" onclick="closePopup()">×</div>
+                </div>
+            </div>
+            <div style="padding: 20px;" id="popupContent">
+                <p>Loading popup content...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let gameState = {
+            players: {},
+            roomCode: '',
+            gameStarted: false,
+            myId: '',
+            myProgress: 0,
+            sabotageAbilities: [],
+            isMyTurn: true
+        };
+
+        let progressInterval;
+        let sabotageInterval;
+
+        // Initialize connection
+        function initSocket() {
+            // For local development, use localhost. For production, this will auto-detect
+            const socketUrl = window.location.hostname === 'localhost' ? 
+                'http://localhost:3000' : window.location.origin;
+            
+            socket = io(socketUrl);
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                gameState.myId = socket.id;
+                showNotification('Connected to server!');
+            });
+
+            socket.on('gameJoined', (data) => {
+                gameState.roomCode = data.roomCode;
+                gameState.players = data.players;
+                document.getElementById('currentRoomCode').textContent = data.roomCode;
+                showWaitingArea();
+                updatePlayersList();
+            });
+
+            socket.on('playerJoined', (data) => {
+                gameState.players = data.players;
+                updatePlayersList();
+            });
+
+            socket.on('playerLeft', (data) => {
+                gameState.players = data.players;
+                updatePlayersList();
+                if (gameState.gameStarted) {
+                    updateGameDisplay();
+                }
+            });
+
+            socket.on('gameStarted', () => {
+                startGameDisplay();
+            });
+
+            socket.on('progressUpdate', (data) => {
+                gameState.players = data.players;
+                updateGameDisplay();
+            });
+
+            socket.on('sabotageReceived', (data) => {
+                handleSabotage(data);
+            });
+
+            socket.on('sabotageAbility', (abilities) => {
+                gameState.sabotageAbilities = abilities;
+                updateSabotagePanel();
+            });
+
+            socket.on('gameEnded', (data) => {
+                showWinnerScreen(data.winner);
+            });
+
+            socket.on('error', (error) => {
+                alert('Error: ' + error);
+            });
+        }
+
+        function joinGame() {
+            const playerName = document.getElementById('playerNameInput').value.trim();
+            const roomCode = document.getElementById('roomCodeInput').value.trim();
+            
+            if (!playerName) {
+                alert('Please enter your name!');
+                return;
+            }
+
+            socket.emit('joinGame', { playerName, roomCode });
+        }
+
+        function startGame() {
+            socket.emit('startGame');
+        }
+
+        function showWaitingArea() {
+            document.getElementById('lobbyScreen').querySelector('div').style.display = 'none';
+            document.getElementById('waitingArea').style.display = 'block';
+        }
+
+        function updatePlayersList() {
+            const playersList = document.getElementById('playersList');
+            const players = Object.values(gameState.players);
+            
+            playersList.innerHTML = players.map(player => 
+                `<div>${player.name} ${player.isHost ? '👑' : ''} ${player.ready ? '✅' : '⏳'}</div>`
+            ).join('');
+
+            // Show start button if I'm host and we have enough players
+            const myPlayer = gameState.players[gameState.myId];
+            const readyPlayers = players.filter(p => p.ready).length;
+            
+            if (myPlayer && myPlayer.isHost && players.length >= 2 && readyPlayers === players.length) {
+                document.getElementById('startGameBtn').style.display = 'block';
+            }
+        }
+
+        function startGameDisplay() {
+            gameState.gameStarted = true;
+            document.getElementById('lobbyScreen').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            
+            setupGameDisplay();
+            startProgressLoop();
+            startSabotageLoop();
+        }
+
+        function setupGameDisplay() {
+            const container = document.getElementById('playersContainer');
+            const players = Object.values(gameState.players);
+            
+            container.innerHTML = players.map(player => `
+                <div class="player-bar" id="player-${player.id}">
+                    <div class="player-name">${player.name}</div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progress-${player.id}"></div>
+                        <div class="progress-text" id="text-${player.id}">0%</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateGameDisplay() {
+            Object.values(gameState.players).forEach(player => {
+                const progressBar = document.getElementById(`progress-${player.id}`);
+                const progressText = document.getElementById(`text-${player.id}`);
+                
+                if (progressBar && progressText) {
+                    progressBar.style.width = `${player.progress}%`;
+                    progressText.textContent = `${Math.round(player.progress)}%`;
+                    
+                    // Add crash effect if player has issues
+                    const playerBar = document.getElementById(`player-${player.id}`);
+                    if (player.crashed) {
+                        playerBar.classList.add('crash-effect');
+                        setTimeout(() => playerBar.classList.remove('crash-effect'), 500);
+                    }
+                }
+            });
+        }
+
+        function increaseProgress() {
+            if (gameState.gameStarted && gameState.isMyTurn) {
+                socket.emit('increaseProgress');
+            }
+        }
+
+        function startProgressLoop() {
+            progressInterval = setInterval(() => {
+                if (gameState.gameStarted && gameState.isMyTurn) {
+                    // Auto-progress (very slow)
+                    socket.emit('increaseProgress', { auto: true });
+                }
+            }, 2000);
+        }
+
+        function startSabotageLoop() {
+            sabotageInterval = setInterval(() => {
+                if (gameState.gameStarted) {
+                    // Request new sabotage abilities
+                    socket.emit('requestSabotage');
+                    
+                    // Random distraction events
+                    if (Math.random() < 0.3) {
+                        triggerRandomDistraction();
+                    }
+                }
+            }, 8000);
+        }
+
+        function updateSabotagePanel() {
+            const container = document.getElementById('sabotageButtons');
+            const players = Object.values(gameState.players).filter(p => p.id !== gameState.myId);
+            
+            container.innerHTML = gameState.sabotageAbilities.map(ability => `
+                <button class="sabotage-btn" onclick="useSabotage('${ability.type}', '${ability.target || 'random'}')">
+                    ${getSabotageIcon(ability.type)} ${ability.name}
+                </button>
+            `).join('');
+        }
+
+        function getSabotageIcon(type) {
+            const icons = {
+                'slow': '🐌',
+                'freeze': '❄️',
+                'popup': '📢',
+                'bloatware': '💾',
+                'crash': '💥'
+            };
+            return icons[type] || '🔧';
+        }
+
+        function useSabotage(type, target) {
+            const players = Object.values(gameState.players).filter(p => p.id !== gameState.myId);
+            const targetPlayer = target === 'random' ? 
+                players[Math.floor(Math.random() * players.length)] : 
+                gameState.players[target];
+            
+            if (targetPlayer) {
+                socket.emit('useSabotage', { type, targetId: targetPlayer.id });
+                gameState.sabotageAbilities = gameState.sabotageAbilities.filter(a => 
+                    !(a.type === type && a.target === target)
+                );
+                updateSabotagePanel();
+                showNotification(`Used ${type} on ${targetPlayer.name}!`);
+            }
+        }
+
+        function handleSabotage(data) {
+            const { type, fromPlayer } = data;
+            
+            switch (type) {
+                case 'slow':
+                    showNotification(`${fromPlayer} slowed you down! 🐌`);
+                    gameState.isMyTurn = false;
+                    setTimeout(() => gameState.isMyTurn = true, 5000);
+                    break;
+                    
+                case 'freeze':
+                    showNotification(`${fromPlayer} froze your system! ❄️`);
+                    document.getElementById('loadButton').disabled = true;
+                    setTimeout(() => {
+                        document.getElementById('loadButton').disabled = false;
+                    }, 3000);
+                    break;
+                    
+                case 'popup':
+                    showFakePopup();
+                    break;
+                    
+                case 'bloatware':
+                    showNotification(`${fromPlayer} installed bloatware! 💾`);
+                    // Reduce progress slightly
+                    socket.emit('increaseProgress', { decrease: true });
+                    break;
+                    
+                case 'crash':
+                    showNotification(`${fromPlayer} tried to crash you! 💥`);
+                    showBSOD();
+                    break;
+            }
+        }
+
+        function triggerRandomDistraction() {
+            const distractions = [
+                () => showAntivirusScan(),
+                () => showSystemUpdate(),
+                () => showEULA(),
+                () => showFakeError()
+            ];
+            
+            const randomDistraction = distractions[Math.floor(Math.random() * distractions.length)];
+            randomDistraction();
+        }
+
+        function showFakePopup() {
+            const popups = [
+                {
+                    title: "System Update Required",
+                    content: `<p>⚠️ Critical system update available!</p>
+                             <p>Your system is 47% slower without this update.</p>
+                             <button onclick="closePopup()">Install Now</button>
+                             <button onclick="closePopup()">Remind Me Later</button>`
+                },
+                {
+                    title: "Antivirus Alert",
+                    content: `<p>🛡️ Scanning system for threats...</p>
+                             <div style="background: #f0f0f0; padding: 10px; margin: 10px 0;">
+                             <div style="width: 100%; height: 20px; background: #ddd;">
+                             <div style="width: 67%; height: 100%; background: #4CAF50;"></div>
+                             </div>
+                             <p>Scanning: C:/Windows/System32/...</p>
+                             </div>
+                             <button onclick="closePopup()">OK</button>`
+                },
+                {
+                    title: "Low Disk Space",
+                    content: `<p>💾 Your disk is running low on space!</p>
+                             <p>Free up space now to continue loading.</p>
+                             <button onclick="closePopup()">Clean Now</button>
+                             <button onclick="closePopup()">Ignore</button>`
+                }
+            ];
+            
+            const popup = popups[Math.floor(Math.random() * popups.length)];
+            showPopup(popup.title, popup.content);
+        }
+
+        function showAntivirusScan() {
+            showPopup("Windows Defender", `
+                <p>🛡️ Running full system scan...</p>
+                <div style="background: white; padding: 10px; border: 1px solid #ccc;">
+                    <div style="width: 100%; height: 15px; background: #eee; border: 1px solid #ccc;">
+                        <div style="width: ${Math.random() * 100}%; height: 100%; background: #0078d4;"></div>
+                    </div>
+                    <p style="font-size: 12px; margin-top: 5px;">Files scanned: ${Math.floor(Math.random() * 50000)}</p>
+                </div>
+                <p>Please wait while we ensure your system is secure.</p>
+                <button onclick="closePopup()">Run in Background</button>
+            `);
+        }
+
+        function showSystemUpdate() {
+            showPopup("Windows Update", `
+                <p>🔄 Installing updates...</p>
+                <p>Update 1 of 17</p>
+                <div style="background: white; padding: 15px; border: 1px solid #ccc;">
+                    <div style="width: 100%; height: 20px; background: #eee;">
+                        <div style="width: 23%; height: 100%; background: #0078d4;"></div>
+                    </div>
+                    <p style="margin-top: 10px;">This may take a while. Don't turn off your computer.</p>
+                </div>
+                <button onclick="closePopup()">Hide</button>
+            `);
+        }
+
+        function showEULA() {
+            showPopup("License Agreement", `
+                <p>📜 Please read and accept the terms:</p>
+                <div class="eula-content">
+                    <p>END USER LICENSE AGREEMENT</p>
+                    <p>This End User License Agreement is a legal agreement between you and our company...</p>
+                    <p>1. GRANT OF LICENSE. We grant you a limited, non-exclusive license...</p>
+                    <p>2. RESTRICTIONS. You may not reverse engineer, decompile...</p>
+                    <p>3. TERMINATION. This license is effective until terminated...</p>
+                    <p>4. WARRANTY DISCLAIMER. THE SOFTWARE IS PROVIDED "AS IS"...</p>
+                    <p>5. LIMITATION OF LIABILITY. IN NO EVENT SHALL WE BE LIABLE...</p>
+                    <p>6. GOVERNING LAW. This agreement shall be governed by...</p>
+                    <p>7. ENTIRE AGREEMENT. This agreement constitutes the entire...</p>
+                    <p>BY CLICKING "I AGREE", YOU ACKNOWLEDGE THAT YOU HAVE READ...</p>
+                    ${Array(50).fill(0).map(() => "<p>Additional legal text here...</p>").join('')}
+                    <p><strong>BY CONTINUING, YOU AGREE TO ALL TERMS ABOVE.</strong></p>
+                </div>
+                <button onclick="closePopup()">I Agree</button>
+                <button onclick="closePopup()">Decline</button>
+            `);
+        }
+
+        function showFakeError() {
+            showPopup("Application Error", `
+                <p>❌ LoadingManager.exe has encountered an error</p>
+                <p>Error Code: 0x80070005</p>
+                <p>The application was unable to start correctly.</p>
+                <button onclick="closePopup()">Restart Application</button>
+                <button onclick="closePopup()">Send Error Report</button>
+            `);
+        }
+
+        function showBSOD() {
+            const bsod = document.createElement('div');
+            bsod.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: #0000ff; color: white; z-index: 9999;
+                display: flex; flex-direction: column; justify-content: center;
+                align-items: center; font-family: 'Courier New', monospace;
+                font-size: 18px; text-align: center; padding: 50px;
+            `;
+            bsod.innerHTML = `
+                <div>A problem has been detected and Windows has been shut down to prevent damage to your computer.</div>
+                <br>
+                <div>IRQL_NOT_LESS_OR_EQUAL</div>
+                <br>
+                <div>*** STOP: 0x0000000A (0x00000000, 0x00000002, 0x00000000, 0x804E47B4)</div>
+                <br>
+                <div>Beginning dump of physical memory...</div>
+                <div id="bsodProgress">Physical memory dump complete.</div>
+            `;
+            
+            document.body.appendChild(bsod);
+            
+            setTimeout(() => {
+                document.body.removeChild(bsod);
+                showNotification('System recovered from crash! 💻');
+            }, 4000);
+        }
+
+        function showPopup(title, content) {
+            document.getElementById('popupTitle').textContent = title;
+            document.getElementById('popupContent').innerHTML = content;
+            document.getElementById('popupOverlay').style.display = 'block';
+            
+            // Disable loading button while popup is open
+            document.getElementById('loadButton').disabled = true;
+        }
+
+        function closePopup() {
+            document.getElementById('popupOverlay').style.display = 'none';
+            document.getElementById('loadButton').disabled = false;
+        }
+
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        function showWinnerScreen(winner) {
+            document.getElementById('winnerText').textContent = `🎉 ${winner.name} reached 100% first! 🎉`;
+            document.getElementById('winnerScreen').style.display = 'flex';
+            
+            // Clear intervals
+            if (progressInterval) clearInterval(progressInterval);
+            if (sabotageInterval) clearInterval(sabotageInterval);
+        }
+
+        // Update status bar
+        setInterval(() => {
+            if (gameState.gameStarted) {
+                const myPlayer = gameState.players[gameState.myId];
+                if (myPlayer) {
+                    document.getElementById('statusText').textContent = 
+                        `Progress: ${Math.round(myPlayer.progress)}% | Status: ${gameState.isMyTurn ? 'Loading...' : 'Interrupted'}`;
+                }
+            }
+        }, 1000);
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            initSocket();
+        });
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>
