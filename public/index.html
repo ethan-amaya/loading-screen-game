@@ -545,7 +545,7 @@
                     // Auto-progress (very slow)
                     socket.emit('increaseProgress', { auto: true });
                 }
-            }, 2000);
+            }, 8000);
         }
 
         function startSabotageLoop() {
@@ -555,11 +555,11 @@
                     socket.emit('requestSabotage');
                     
                     // Random distraction events
-                    if (Math.random() < 0.3) {
+                    if (Math.random() < 0.5) {
                         triggerRandomDistraction();
                     }
                 }
-            }, 8000);
+            }, 15000);
         }
 
         function updateSabotagePanel() {
@@ -607,7 +607,7 @@
                 case 'slow':
                     showNotification(`${fromPlayer} slowed you down! 🐌`);
                     gameState.isMyTurn = false;
-                    setTimeout(() => gameState.isMyTurn = true, 5000);
+                    setTimeout(() => gameState.isMyTurn = true, 8000);
                     break;
                     
                 case 'freeze':
@@ -615,7 +615,7 @@
                     document.getElementById('loadButton').disabled = true;
                     setTimeout(() => {
                         document.getElementById('loadButton').disabled = false;
-                    }, 3000);
+                    }, 5000);
                     break;
                     
                 case 'popup':

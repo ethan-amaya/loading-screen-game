@@ -141,7 +141,7 @@ function updatePlayerProgress(playerId, amount = 1, decrease = false) {
     if (roomPlayer.sabotageEffects.frozen) return null;
     
     const progressAmount = decrease ? -amount : amount;
-    const multiplier = roomPlayer.sabotageEffects.slowed ? 0.3 : 1;
+    const multiplier = roomPlayer.sabotageEffects.slowed ? 0.15 : 1;
     
     roomPlayer.progress += progressAmount * multiplier;
     roomPlayer.progress = Math.max(0, Math.min(100, roomPlayer.progress));
@@ -179,7 +179,7 @@ function applySabotage(fromPlayerId, targetPlayerId, sabotageType) {
                 if (room.players.has(targetPlayerId)) {
                     targetRoomPlayer.sabotageEffects.slowed = false;
                 }
-            }, 8000);
+            }, 20000);
             break;
             
         case 'freeze':
@@ -188,7 +188,7 @@ function applySabotage(fromPlayerId, targetPlayerId, sabotageType) {
                 if (room.players.has(targetPlayerId)) {
                     targetRoomPlayer.sabotageEffects.frozen = false;
                 }
-            }, 5000);
+            }, 12000);
             break;
             
         case 'bloatware':
@@ -296,7 +296,7 @@ io.on('connection', (socket) => {
     });
     
     socket.on('increaseProgress', ({ auto = false, decrease = false } = {}) => {
-        const amount = auto ? 0.5 : (decrease ? 3 : 2.5);
+        const amount = auto ? 0.05 : (decrease ? 2 : 0.3);
         const result = updatePlayerProgress(socket.id, amount, decrease);
         
         if (!result) return;
